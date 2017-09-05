@@ -45,7 +45,8 @@ def main(argv):
                 results = r.json()
                 error_sum = 0
                 for el in results['matrix']:
-                    error_sum += el['result']
+                    if el['result']:
+                        error_sum += el['result']
 
                 p = re.compile(r'https://github.com/(.*)/(.*)/.*$')
                 m = p.match(results["compare_url"])
