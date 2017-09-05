@@ -1,6 +1,7 @@
 import http.client
 import argparse
 import sys
+import re
 import requests,json
 import os
 import csv
@@ -46,7 +47,9 @@ def main(argv):
                 for el in results['matrix']:
                     error_sum += el['result']
 
-                output = [results["id"], results["repository_id"], results["compare_url"], len(results['matrix']), error_sum]
+                p = re.compile(r'https://github.com/(.*)/(.*)/.*$')
+                m = p.match(results["compare_url"])
+                output = [results["id"], results["repository_id"], m.group(1), len(results['matrix']), error_sum]
                 print(','.join(map(str, output)))
 
 
