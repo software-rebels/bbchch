@@ -48,9 +48,13 @@ def main(argv):
                     if el['result']:
                         error_sum += el['result']
 
-                p = re.compile(r'https://github.com/(.*)/(.*)/.*$')
-                m = p.match(results["compare_url"])
-                output = [results["id"], results["repository_id"], m.group(1), len(results['matrix']), error_sum]
+                if results["compare_url"]:
+                    p = re.compile(r'https://github.com/(.*)/(.*)/.*$')
+                    m = p.match(results["compare_url"])
+                    repo_name = m.group(1)
+                else:
+                    repo_name = "null"
+                output = [results["id"], results["repository_id"], repo_name, len(results['matrix']), error_sum]
                 print(','.join(map(str, output)))
 
 
