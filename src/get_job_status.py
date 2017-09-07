@@ -49,7 +49,7 @@ def main(argv):
                         error_sum += el['result']
 
                 if results["compare_url"]:
-                    p = re.compile(r'https://(?:api\.)github.com/(?:repos\/)(.*)/(.*)/.*$')
+                    p = re.compile(r'https://(?:api\.)github.com/(?:repos/)(.*)/(.*)/.*$')
                     m = p.match(results["compare_url"])
                     repo_name = m.group(1)
 
