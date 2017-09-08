@@ -44,7 +44,7 @@ def main(argv):
                         time.sleep(300)
                         continue
 
-                time.sleep(1)
+                # time.sleep(1)
                 results = r.json()
                 build_id = results["id"]
                 print(counter, '-', build_id)
