@@ -1,3 +1,8 @@
+###########
+# Input: results/all_build_ids.csv
+# Output: stored in data/builds as json files (everything in the remote server and 104 in the local test setup)
+##########
+
 import http.client
 import argparse
 import sys
