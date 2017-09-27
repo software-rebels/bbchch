@@ -1,3 +1,9 @@
+###########
+# Input: results/failed_build_ids.csv
+# Output: Redirected to results/job_failure_level.csv
+##########
+
+
 import http.client
 import argparse
 import sys
@@ -7,7 +13,6 @@ import os
 import csv
 import time
 from time import gmtime, strftime
-
 
 def main(argv):
     argparser = argparse.ArgumentParser(description='-s failed_build_ids.csv')

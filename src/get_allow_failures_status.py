@@ -1,3 +1,8 @@
+###########
+# Input: results/failed_build_ids.csv
+# Output: Redirected to in results/allow_failure_status.csv
+##########
+
 import sys
 import re
 import json
