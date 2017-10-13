@@ -1,4 +1,5 @@
 ###########
+# This gets how many jobs are in a build and how many of them failed
 # Input: results/failed_build_ids.csv
 # Output: Redirected to results/job_failure_level.csv
 ##########
@@ -15,6 +16,11 @@ import time
 from time import gmtime, strftime
 
 def main(argv):
+    print('.....')
+    print(os.getcwd())
+    os.chdir(sys.path[0])
+    os.chdir('..')
+    print(os.getcwd())
     argparser = argparse.ArgumentParser(description='-s failed_build_ids.csv')
     argparser.add_argument('-s', dest='src_list', default='results/failed_build_ids.csv',
                            help='input build id list')

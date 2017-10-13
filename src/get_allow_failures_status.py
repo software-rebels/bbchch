@@ -1,5 +1,6 @@
 ###########
-# Input: results/failed_build_ids.csv
+# This gets failure status and some more info (for failed builds only)
+# Input: All builds
 # Output: Redirected to in results/allow_failure_status.csv
 ##########
 
