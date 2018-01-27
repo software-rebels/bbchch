@@ -84,11 +84,11 @@ public class Graph
         printNode(this.rootNode);
         rootNode.visited=true;
         int kidCount = getImmediateChildrenCount(rootNode);
-//        if (kidCount < 2){
-//            System.out.printf("Not enough kids.\n");
-//            clearNodes();
-//            return;
-//        }
+        if (kidCount < 2){
+            System.out.printf("Not enough kids.\n");
+            clearNodes();
+            return;
+        }
         while(!q.isEmpty())
         {
             CommitNode n=(CommitNode)q.remove();
@@ -100,7 +100,7 @@ public class Graph
                 child.distanceToSolution = n.distanceToSolution+1;
                 printNode(child);
                 if(("passed").equals(child.status)){
-                    System.out.printf("Found it! kidcount:%s distance:%s\n", kidCount, child.distanceToSolution);
+                    System.out.printf("Found it! commit:%s kidcount:%s distance:%s\n", rootNode.label, kidCount, child.distanceToSolution);
                     clearNodes();
                     return;
                 }
@@ -149,9 +149,10 @@ public class Graph
             CommitNode n=(CommitNode)nodes.get(i);
             if (n==null){
                 System.out.printf("Current node size: %s missing i: %s",size,i);
+            } else {
+                n.visited = false;
+                n.distanceToSolution = 0;
             }
-            n.visited=false;
-            n.distanceToSolution=0;
             i++;
         }
         System.out.println("Cleaning done.");
