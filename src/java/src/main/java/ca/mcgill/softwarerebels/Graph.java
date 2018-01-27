@@ -150,7 +150,6 @@ public class Graph
             n.visited=false;
             n.distanceToSolution=0;
             i++;
-            System.out.printf("%s cleaned. %s\n",i,n);
         }
         System.out.println("Cleaning done.");
     }
