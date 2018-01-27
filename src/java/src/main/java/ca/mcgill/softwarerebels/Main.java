@@ -88,7 +88,7 @@ public class Main {
                 Graph commitGraph = (Graph) graphs.get(projectName);
                 CommitNode source = null;
                 CommitNode dest = null;
-                if (commits.containsKey(prevCommit) && commitGraph.nodes.contains(source)){
+                if (commits.containsKey(prevCommit)){
                     source = (CommitNode) commits.get(prevCommit);
                 } else {
                     System.out.printf("Source not found.. %s\n",prevCommit);
@@ -99,6 +99,10 @@ public class Main {
                     dest = (CommitNode) commits.get(triggerCommit);
                 } else {
                     System.out.printf("Destination not found.. %s\n",triggerCommit);
+                    continue;
+                }
+                if (!commitGraph.nodes.contains(source) || !commitGraph.nodes.contains(dest)){
+                    System.out.printf("Source or Destination not found.. %s %s\n",prevCommit, triggerCommit);
                     continue;
                 }
                 //if (!commitGraph.nodes.contains(dest)) {commitGraph.addNode(dest);}
