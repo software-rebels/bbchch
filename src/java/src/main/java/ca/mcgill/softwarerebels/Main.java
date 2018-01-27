@@ -88,17 +88,17 @@ public class Main {
                 Graph commitGraph = (Graph) graphs.get(projectName);
                 CommitNode source = null;
                 CommitNode dest = null;
-                if (commits.containsKey(prevCommit)){
+                if (commits.containsKey(prevCommit) && commitGraph.nodes.contains(source)){
                     source = (CommitNode) commits.get(prevCommit);
                 } else {
                     System.out.printf("Source not found.. %s\n",prevCommit);
                     continue;
                 }
 
-                if (commits.containsKey(triggerCommit)){
+                if (commits.containsKey(triggerCommit) && commitGraph.nodes.contains(dest)){
                     dest = (CommitNode) commits.get(triggerCommit);
                 } else {
-                    System.out.printf("Destination.. %s\n",triggerCommit);
+                    System.out.printf("Destination not found.. %s\n",triggerCommit);
                 }
                 //if (!commitGraph.nodes.contains(dest)) {commitGraph.addNode(dest);}
                 System.out.printf("gsize %s : %s -> %s\n",commitGraph.nodes.size(), source,dest);
