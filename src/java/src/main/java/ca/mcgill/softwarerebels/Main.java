@@ -99,6 +99,7 @@ public class Main {
                     dest = (CommitNode) commits.get(triggerCommit);
                 } else {
                     System.out.printf("Destination not found.. %s\n",triggerCommit);
+                    continue;
                 }
                 //if (!commitGraph.nodes.contains(dest)) {commitGraph.addNode(dest);}
                 System.out.printf("gsize %s : %s -> %s\n",commitGraph.nodes.size(), source,dest);
