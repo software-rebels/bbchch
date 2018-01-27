@@ -84,11 +84,11 @@ public class Graph
         printNode(this.rootNode);
         rootNode.visited=true;
         int kidCount = getImmediateChildrenCount(rootNode);
-        if (kidCount < 2){
-            System.out.printf("Not enough kids.\n");
-            clearNodes();
-            return;
-        }
+//        if (kidCount < 2){
+//            System.out.printf("Not enough kids.\n");
+//            clearNodes();
+//            return;
+//        }
         while(!q.isEmpty())
         {
             CommitNode n=(CommitNode)q.remove();
@@ -148,7 +148,7 @@ public class Graph
         {
             CommitNode n=(CommitNode)nodes.get(i);
             if (n==null){
-                System.out.printf("Current not size: %s missing i: %s",size,i);
+                System.out.printf("Current node size: %s missing i: %s",size,i);
             }
             n.visited=false;
             n.distanceToSolution=0;
