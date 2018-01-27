@@ -85,7 +85,7 @@ public class Graph
         rootNode.visited=true;
         int kidCount = getImmediateChildrenCount(rootNode);
         if (kidCount < 2){
-            System.out.printf("Not enough kids.");
+            System.out.printf("Not enough kids.\n");
             clearNodes();
             return;
         }
@@ -100,7 +100,7 @@ public class Graph
                 child.distanceToSolution = n.distanceToSolution+1;
                 printNode(child);
                 if(child.status == "passed"){
-                    System.out.printf("Found it! kidcount:%s distance:%s", kidCount, child.distanceToSolution);
+                    System.out.printf("Found it! kidcount:%s distance:%s\n", kidCount, child.distanceToSolution);
                     clearNodes();
                     return;
                 }
@@ -142,6 +142,7 @@ public class Graph
     //Utility methods for clearing visited property of node
     private void clearNodes()
     {
+        System.out.printf("To clean: %s\n",size);
         int i=0;
         while(i<size)
         {
@@ -149,18 +150,20 @@ public class Graph
             n.visited=false;
             n.distanceToSolution=0;
             i++;
+            System.out.printf("%s cleaned. %s\n",i,n);
         }
+        System.out.println("Cleaning done.");
     }
 
     //Utility methods for printing the node's label
     private void printNode(CommitNode n)
     {
-        System.out.print("\n"+ n.label+" depth:"+n.distanceToSolution);
+        System.out.println("\n"+ n.label+" depth:"+n.distanceToSolution);
     }
 
     private void printParentalInfo(CommitNode n, int c)
     {
-        System.out.print("\n"+ n.label+" no .of kids:"+c);
+        System.out.println("\n"+ n.label+" no .of kids:"+c);
     }
 
 

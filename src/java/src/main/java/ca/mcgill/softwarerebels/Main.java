@@ -127,7 +127,7 @@ public class Main {
                     cgraph.bfs();
                 }
             }
-            System.out.println(pair.getKey() + " = " + pair.getValue());
+            System.out.println("\nProcessing: "+pair.getKey());
             it.remove();
         }
 
