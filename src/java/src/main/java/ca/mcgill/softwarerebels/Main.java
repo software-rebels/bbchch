@@ -119,6 +119,7 @@ public class Main {
         Iterator it = graphs.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry pair = (Map.Entry)it.next();
+            System.out.println("\nProcessing: "+pair.getKey());
             Graph cgraph = (Graph) pair.getValue();
             for (Object cnode: cgraph.nodes) {
                 CommitNode cn = (CommitNode) cnode;
@@ -127,7 +128,6 @@ public class Main {
                     cgraph.bfs();
                 }
             }
-            System.out.println("\nProcessing: "+pair.getKey());
             it.remove();
         }
 

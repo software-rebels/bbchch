@@ -147,6 +147,9 @@ public class Graph
         while(i<size)
         {
             CommitNode n=(CommitNode)nodes.get(i);
+            if (n==null){
+                System.out.printf("Current not size: %s missing i: %s",size,i);
+            }
             n.visited=false;
             n.distanceToSolution=0;
             i++;
