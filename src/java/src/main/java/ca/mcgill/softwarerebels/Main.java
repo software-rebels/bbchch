@@ -103,6 +103,7 @@ public class Main {
                 }
                 //if (!commitGraph.nodes.contains(dest)) {commitGraph.addNode(dest);}
                 System.out.printf("gsize %s : %s -> %s\n",commitGraph.nodes.size(), source,dest);
+                System.out.printf("gsize %s : %s -> %s\n",commitGraph.nodes.indexOf(source), commitGraph.nodes.indexOf(dest));
                 commitGraph.connectNode(source,dest);
 
 
