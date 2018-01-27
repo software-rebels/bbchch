@@ -123,7 +123,7 @@ public class Main {
             Graph cgraph = (Graph) pair.getValue();
             for (Object cnode: cgraph.nodes) {
                 CommitNode cn = (CommitNode) cnode;
-                if (cn.status != "passed"){
+                if (!cn.status.equals("passed")){
                     cgraph.setRootNode(cn);
                     cgraph.bfs();
                 }

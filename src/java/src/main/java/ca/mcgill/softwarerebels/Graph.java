@@ -99,7 +99,7 @@ public class Graph
                 child.visited=true;
                 child.distanceToSolution = n.distanceToSolution+1;
                 printNode(child);
-                if(child.status == "passed"){
+                if(("passed").equals(child.status)){
                     System.out.printf("Found it! kidcount:%s distance:%s\n", kidCount, child.distanceToSolution);
                     clearNodes();
                     return;
@@ -160,7 +160,7 @@ public class Graph
     //Utility methods for printing the node's label
     private void printNode(CommitNode n)
     {
-        System.out.println("\n"+ n.label+" depth:"+n.distanceToSolution);
+        System.out.println("\n"+ n.label+" depth:"+n.distanceToSolution+" status:"+n.status);
     }
 
     private void printParentalInfo(CommitNode n, int c)
