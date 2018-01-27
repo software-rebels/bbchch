@@ -84,6 +84,11 @@ public class Graph
         printNode(this.rootNode);
         rootNode.visited=true;
         int kidCount = getImmediateChildrenCount(rootNode);
+        if (kidCount < 2){
+            System.out.printf("Not enough kids.");
+            clearNodes();
+            return;
+        }
         while(!q.isEmpty())
         {
             CommitNode n=(CommitNode)q.remove();
