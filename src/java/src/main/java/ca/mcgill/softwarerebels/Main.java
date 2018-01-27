@@ -66,7 +66,7 @@ public class Main {
                 }
                 if (!commitGraph.nodes.contains(dest)) {commitGraph.addNode(dest);}
             } else {
-                System.out.printf("Project skipped.. %s\n",projectName);
+                System.out.printf("1Project skipped.. %s\n",projectName);
             }
 
         }
@@ -112,7 +112,7 @@ public class Main {
 
 
             } else {
-                System.out.printf("Project skipped.. %s\n",projectName);
+                System.out.printf("2Project skipped.. %s\n",projectName);
             }
 
             if (prevCommit.length()>1) {
