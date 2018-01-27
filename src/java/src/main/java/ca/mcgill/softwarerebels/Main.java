@@ -95,7 +95,7 @@ public class Main {
                     continue;
                 }
 
-                if (commits.containsKey(triggerCommit) && commitGraph.nodes.contains(dest)){
+                if (commits.containsKey(triggerCommit)){
                     dest = (CommitNode) commits.get(triggerCommit);
                 } else {
                     System.out.printf("Destination not found.. %s\n",triggerCommit);
