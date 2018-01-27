@@ -114,10 +114,21 @@ public class Main {
             } else {
                 System.out.printf("2Project skipped.. %s\n",projectName);
             }
+        }
 
-            if (prevCommit.length()>1) {
-                System.out.printf("Line%s\n",prevCommit);
+        Iterator it = graphs.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry pair = (Map.Entry)it.next();
+            Graph cgraph = (Graph) pair.getValue();
+            for (Object cnode: cgraph.nodes) {
+                CommitNode cn = (CommitNode) cnode;
+                if (cn.status != "passed"){
+                    cgraph.setRootNode(cn);
+                    cgraph.bfs();
+                }
             }
+            System.out.println(pair.getKey() + " = " + pair.getValue());
+            it.remove();
         }
 
 
