@@ -17,9 +17,52 @@ public class Main {
     static File cgfile;
 
     public static void main(String[] args) {
+        CommitNode nA=new CommitNode("A","passed");
+        CommitNode nB=new CommitNode("B","passed");
+        CommitNode nC=new CommitNode("C","failed");
+        CommitNode nD=new CommitNode("D","failed");
+        CommitNode nE=new CommitNode("E","passed");
+        CommitNode nF=new CommitNode("F","failed");
+        CommitNode nG=new CommitNode("G","failed");
+        CommitNode nH=new CommitNode("H","passed");
+
+        Graph g=new Graph();
+        g.addNode(nA);
+        g.addNode(nB);
+        g.addNode(nC);
+        g.addNode(nD);
+        g.addNode(nE);
+        g.addNode(nF);
+        g.addNode(nG);
+        g.addNode(nH);
+        g.setRootNode(nA);
+
+        g.connectNode(nA,nB);
+        g.connectNode(nA,nC);
+        g.connectNode(nA,nD);
+
+        g.connectNode(nB,nE);
+        g.connectNode(nB,nF);
+        g.connectNode(nC,nF);
+        g.connectNode(nF,nG);
+        g.connectNode(nG,nH);
 
 
-        Graph g = new Graph();
+        //Perform the traversal of the graph
+        System.out.println("DFS Traversal of a tree is ------------->");
+        g.dfs();
+
+        System.out.println("\nBFS Traversal of a tree is ------------->");
+        g.bfs();
+
+        System.out.println("\nNew analysis ------------->");
+        ArrayList startPoints = g.findPotentialStartPoints();
+
+        for(Object x:startPoints){
+            System.out.println(((CommitNode)x).label + " : "+g.getLongestPathLength((CommitNode)x));
+
+        }
+
         HashMap graphs = new HashMap();
         HashMap commits = new HashMap();
 
@@ -120,13 +163,19 @@ public class Main {
             Map.Entry pair = (Map.Entry) it.next();
             System.out.println("\nProcessing: " + pair.getKey());
             Graph cgraph = (Graph) pair.getValue();
-            for (Object cnode : cgraph.nodes) {
-                CommitNode cn = (CommitNode) cnode;
-                if (cn != null && cn.status != null && !cn.status.equals("passed")) {
-                    cgraph.setRootNode(cn);
-                    cgraph.bfs();
-                }
+//            for (Object cnode : cgraph.nodes) {
+//                CommitNode cn = (CommitNode) cnode;
+//                if (cn != null && cn.status != null && !cn.status.equals("passed")) {
+//                    cgraph.setRootNode(cn);
+//                    cgraph.bfs();
+//                }
+//            }
+
+            startPoints = cgraph.findPotentialStartPoints();
+            for(Object x:startPoints){
+                System.out.println("Result:"+((CommitNode)x).label + ","+cgraph.getLongestPathLength((CommitNode)x)+","+pair.getKey());
             }
+
             it.remove();
         }
 

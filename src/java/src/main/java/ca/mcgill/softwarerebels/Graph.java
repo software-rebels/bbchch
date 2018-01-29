@@ -10,6 +10,7 @@ public class Graph
 {
     public CommitNode rootNode;
     public ArrayList nodes=new ArrayList();
+
     public int[][] adjMatrix;//Edges will be represented as adjacency Matrix
     int size;
     public void setRootNode(CommitNode n)
@@ -138,6 +139,38 @@ public class Graph
         clearNodes();
     }
 
+    public ArrayList findPotentialStartPoints(){
+        ArrayList potentials=new ArrayList();
+        for (Object cnode : this.nodes) {
+                CommitNode cn = (CommitNode) cnode;
+//                System.out.println("checking "+cn.label);
+                    if (cn.status.equals("passed")){
+                        CommitNode child=null;
+                        while((child=getUnvisitedChildNode(cn))!=null){
+                            if (!child.status.equals("passed")){
+                                potentials.add(child);
+                            }
+                            child.visited = true;
+                        }
+                        clearNodes();
+                    }
+
+            }
+            return potentials;
+    }
+
+    int getLongestPathLength(CommitNode node) {
+        if(node == null) return 0;
+        if(node.status.equals("passed")) return 0;
+        int max = 0;
+        CommitNode child = null;
+        while((child = getUnvisitedChildNode(node))!=null){
+            max = Math.max(getLongestPathLength(child),max);
+            child.visited = true;
+        }
+        return 1+max;
+    }
+
 
     //Utility methods for clearing visited property of node
     private void clearNodes()
@@ -155,7 +188,7 @@ public class Graph
             }
             i++;
         }
-        System.out.println("Cleaning done.");
+//        System.out.println("Cleaning done.");
     }
 
     //Utility methods for printing the node's label
