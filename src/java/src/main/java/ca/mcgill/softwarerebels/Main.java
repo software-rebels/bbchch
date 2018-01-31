@@ -120,7 +120,13 @@ public class Main {
 
             for (Node n : selectedNodes) {
                 ctree.setRoot(n);
-                ArrayList<ArrayList> ps = ctree.getPathsFromRootToAnyLeaf();
+                ArrayList<ArrayList> ps =  new ArrayList<ArrayList>();
+                try {
+                   ps = ctree.getPathsFromRootToAnyLeaf();
+                } catch (java.lang.StackOverflowError e) {
+                    e.printStackTrace();
+                }
+
 
                 trimPaths(ps);
                 removeRedundantPaths(ps);
@@ -130,12 +136,14 @@ public class Main {
                     if (nodes.size()>1){
                         CommitNode start = (CommitNode) ((Node)nodes.get(0)).getData();
                         CommitNode end = (CommitNode) ((Node)nodes.get(nodes.size()-1)).getData();
+                        int length = nodes.size();
                         long diff = 0;
                         if (end.status.equals("passed")) {
                             diff = end.buildTime.getTime() - start.buildTime.getTime();
+                            length--;
                         }
                         long minutes = Math.abs(TimeUnit.MILLISECONDS.toSeconds(diff)/60);
-                        System.out.printf("%s,%s,%s,%s\n",start.label,projectname,String.valueOf(nodes.size()),String.valueOf(minutes));
+                        System.out.printf("%s,%s,%s,%s\n",start.label,projectname,String.valueOf(length),String.valueOf(minutes));
                     }
                 }
             }
