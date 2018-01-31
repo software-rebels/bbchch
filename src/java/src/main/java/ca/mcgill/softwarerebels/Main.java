@@ -3,8 +3,12 @@ package ca.mcgill.softwarerebels;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
+import com.c05mic.generictree.*;
 import org.apache.commons.io.FileUtils;
 
 public class Main {
@@ -15,56 +19,14 @@ public class Main {
     static List<String> commitList;
     static File projectsfile;
     static File cgfile;
+    final static String timeformat = "yyyy-MM-dd HH:mm:ss";
 
     public static void main(String[] args) {
-        CommitNode nA=new CommitNode("A","passed");
-        CommitNode nB=new CommitNode("B","passed");
-        CommitNode nC=new CommitNode("C","failed");
-        CommitNode nD=new CommitNode("D","failed");
-        CommitNode nE=new CommitNode("E","passed");
-        CommitNode nF=new CommitNode("F","failed");
-        CommitNode nG=new CommitNode("G","failed");
-        CommitNode nH=new CommitNode("H","passed");
-
-        Graph g=new Graph();
-        g.addNode(nA);
-        g.addNode(nB);
-        g.addNode(nC);
-        g.addNode(nD);
-        g.addNode(nE);
-        g.addNode(nF);
-        g.addNode(nG);
-        g.addNode(nH);
-        g.setRootNode(nA);
-
-        g.connectNode(nA,nB);
-        g.connectNode(nA,nC);
-        g.connectNode(nA,nD);
-
-        g.connectNode(nB,nE);
-        g.connectNode(nB,nF);
-        g.connectNode(nC,nF);
-        g.connectNode(nF,nG);
-        g.connectNode(nG,nH);
-
-
-        //Perform the traversal of the graph
-        System.out.println("DFS Traversal of a tree is ------------->");
-        g.dfs();
-
-        System.out.println("\nBFS Traversal of a tree is ------------->");
-        g.bfs();
-
-        System.out.println("\nNew analysis ------------->");
-        ArrayList startPoints = g.findPotentialStartPoints();
-
-        for(Object x:startPoints){
-            System.out.println(((CommitNode)x).label + " : "+g.getLongestPathLength((CommitNode)x));
-
-        }
-
-        HashMap graphs = new HashMap();
-        HashMap commits = new HashMap();
+        SimpleDateFormat sdf = new SimpleDateFormat(timeformat);
+        //HashMap graphs = new HashMap();
+        Graph g = new Graph();
+        HashMap<String, HashMap<String, Node>> commits = new HashMap<String, HashMap<String, Node>>();
+        HashMap<String, Tree<CommitNode>> trees = new HashMap<String, Tree<CommitNode>>();
 
         ClassLoader classLoader = g.getClass().getClassLoader();
         projectsfile = new File(classLoader.getResource("projects_with_failed_builds.csv").getFile());
@@ -82,7 +44,9 @@ public class Main {
             if (projectID.length() > 1) {
                 i++;
                 System.out.printf("project name %s\n", projectID);
-                graphs.put(projectID, new Graph());
+                //graphs.put(projectID, new Graph());
+                commits.put(projectID,new HashMap());
+                trees.put(projectID, new Tree(null));
             }
         }
         System.out.printf("project count %s\n", i);
@@ -92,88 +56,88 @@ public class Main {
             String[] commitData = commitLine.split(",");
             String buildID = trimQuotes(commitData[1]);
             String triggerCommit = trimQuotes(commitData[0]).substring(0, 8);
+            String prevCommit = trimQuotes(commitData[2]);
+            if (prevCommit.length() > 8) {
+                prevCommit = prevCommit.substring(0, 8);
+            }
             String buildStatus = trimQuotes(commitData[3]);
             String projectName = trimQuotes(commitData[4]);
+            Date buildTime = null;
+            try {
+                buildTime = sdf.parse(trimQuotes(commitData[5]));
+            } catch (ParseException e) {
+                e.printStackTrace();
+            }
 
-            if (graphs.containsKey(projectName)) {
-                CommitNode dest = null;
-                Graph commitGraph = (Graph) graphs.get(projectName);
-                if (commits.containsKey(triggerCommit)) {
-                    System.out.printf("Duplicate commit found %s!!%s\n", triggerCommit, buildID);
+            if (trees.containsKey(projectName)) {
+                CommitNode destData = null;
+                CommitNode srcData = null;
+                Node dest = commits.get(projectName).get(triggerCommit);
+                Node src =  commits.get(projectName).get(prevCommit);
+
+                //Handling Trigger Commit
+                if (dest==null) {
+                    destData = new CommitNode(triggerCommit, buildID, buildStatus, buildTime);
+                    dest = new Node(destData);
+                    commits.get(projectName).put(triggerCommit, dest);
+
+                } else if(((CommitNode)dest.getData()).status==null) {
+                    dest.setData(new CommitNode(triggerCommit, buildID, buildStatus, buildTime));
                 } else {
-                    dest = new CommitNode(triggerCommit, buildID, buildStatus);
-                    commits.put(triggerCommit, dest);
+                    System.out.println("Trigger Commit should not be repeated.");
                 }
-                if (!commitGraph.nodes.contains(dest)) {
-                    commitGraph.addNode(dest);
+
+
+                //Handling Src Commit
+                if (src==null) {
+                    srcData = new CommitNode(prevCommit);
+                    src = new Node(srcData);
+                    commits.get(projectName).put(prevCommit, src);
+
                 }
+
+                src.addChild(dest);
+                trees.get(projectName).setRoot(src);
+
             } else {
-                System.out.printf("1Project skipped.. %s\n", projectName);
+
             }
 
         }
         String[] fields = {"tr_build_id", "git_prev_built_commit", "git_trigger_commit", "tr_status", "gh_project_name"};
 
         //Second iteration
-        int counter = 0;
-        for (String commitLine : commitList) {
-            System.out.println(counter++);
-            String[] commitData = commitLine.split(",");
-            String prevCommit = trimQuotes(commitData[2]);
-            if (prevCommit.length() > 8) {
-                prevCommit = prevCommit.substring(0, 8);
-            }
-            String triggerCommit = trimQuotes(commitData[0]).substring(0, 8);
-            String projectName = trimQuotes(commitData[4]);
-            System.out.println(commitLine);
-            if (graphs.containsKey(projectName)) {
-                Graph commitGraph = (Graph) graphs.get(projectName);
-                CommitNode source = null;
-                CommitNode dest = null;
-                if (commits.containsKey(prevCommit)) {
-                    source = (CommitNode) commits.get(prevCommit);
-                } else {
-                    System.out.printf("Source not found.. %s\n", prevCommit);
-                    continue;
-                }
-
-                if (commits.containsKey(triggerCommit)) {
-                    dest = (CommitNode) commits.get(triggerCommit);
-                } else {
-                    System.out.printf("Destination not found.. %s\n", triggerCommit);
-                    continue;
-                }
-                if (!commitGraph.nodes.contains(source) || !commitGraph.nodes.contains(dest)) {
-                    System.out.printf("Source or Destination not found.. %s %s\n", prevCommit, triggerCommit);
-                    continue;
-                }
-                //if (!commitGraph.nodes.contains(dest)) {commitGraph.addNode(dest);}
-                System.out.printf("gsize %s : %s -> %s\n", commitGraph.nodes.size(), source, dest);
-                System.out.printf("%s -> %s\n", commitGraph.nodes.indexOf(source), commitGraph.nodes.indexOf(dest));
-                commitGraph.connectNode(source, dest);
 
 
-            } else {
-                System.out.printf("2Project skipped.. %s\n", projectName);
-            }
-        }
-
-        Iterator it = graphs.entrySet().iterator();
+        Iterator it = trees.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry pair = (Map.Entry) it.next();
-            System.out.println("\nProcessing: " + pair.getKey());
-            Graph cgraph = (Graph) pair.getValue();
-//            for (Object cnode : cgraph.nodes) {
-//                CommitNode cn = (CommitNode) cnode;
-//                if (cn != null && cn.status != null && !cn.status.equals("passed")) {
-//                    cgraph.setRootNode(cn);
-//                    cgraph.bfs();
-//                }
-//            }
+            String projectname =  (String)pair.getKey();
+            System.out.println("\nProcessing: " +projectname);
+            Tree ctree = (Tree) pair.getValue();
+            HashMap<String, Node> hm = commits.get(projectname);
+            ArrayList<Node> selectedNodes = findPotentialStartPoints(hm);
 
-            startPoints = cgraph.findPotentialStartPoints();
-            for(Object x:startPoints){
-                System.out.println("Result:"+((CommitNode)x).label + ","+cgraph.getLongestPathLength((CommitNode)x)+","+pair.getKey());
+            for (Node n : selectedNodes) {
+                ctree.setRoot(n);
+                ArrayList<ArrayList> ps = ctree.getPathsFromRootToAnyLeaf();
+
+                trimPaths(ps);
+                removeRedundantPaths(ps);
+
+                for (ArrayList x : ps){
+                    ArrayList nodes = x;
+                    if (nodes.size()>1){
+                        CommitNode start = (CommitNode) ((Node)nodes.get(0)).getData();
+                        CommitNode end = (CommitNode) ((Node)nodes.get(nodes.size()-1)).getData();
+                        long diff = 0;
+                        if (end.status.equals("passed")) {
+                            diff = end.buildTime.getTime() - start.buildTime.getTime();
+                        }
+                        long minutes = Math.abs(TimeUnit.MILLISECONDS.toSeconds(diff)/60);
+                        System.out.printf("%s,%s,%s,%s\n",start.label,projectname,String.valueOf(nodes.size()),String.valueOf(minutes));
+                    }
+                }
             }
 
             it.remove();
@@ -181,11 +145,66 @@ public class Main {
 
     }
 
+    private static ArrayList<Node> findPotentialStartPoints(HashMap<String, Node> hm) {
+        ArrayList<Node> selectedNodes = new ArrayList<Node>();
+        Iterator it = hm.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry pair = (Map.Entry) it.next();
+            Node n = (Node) pair.getValue();
+            CommitNode nd = (CommitNode) n.getData();
+            if (nd.status != null && nd.status.equals("passed")){
+                for (Object x:n.getChildren()){
+                    CommitNode cdata = (CommitNode)((Node) x).getData();
+                    if (cdata.status != null && !cdata.status.equals("passed")){
+                        selectedNodes.add((Node)x);
+                    }
+                }
+            }
+        }
+        return selectedNodes;
+    }
+
+    private static void trimPaths(ArrayList paths) {
+        for (Object x : paths){
+            ArrayList nodes = (ArrayList) x;
+
+            for (int i = 0; i < nodes.size(); i ++) {
+                Node n = (Node)nodes.get(i);
+                CommitNode cn = (CommitNode) n.getData();
+                if (cn.status == null || cn.status.equals("passed")){
+                    nodes.subList(i+1, nodes.size()).clear();
+                }
+            }
+        }
+    }
+
     static String trimQuotes(String s) {
         if (s.startsWith("\"")) {
             s = s.substring(1, s.length() - 1);
         }
         return s;
+    }
+
+    static void removeRedundantPaths(ArrayList paths) {
+        int size = paths.size();
+
+        // not using a method in the check also speeds up the execution
+        // also i must be less that size-1 so that j doesn't
+        // throw IndexOutOfBoundsException
+        for (int i = 0; i < size - 1; i++) {
+            // start from the next item after strings[i]
+            // since the ones before are checked
+            for (int j = i + 1; j < size; j++) {
+                // no need for if ( i == j ) here
+                if (!paths.get(j).equals(paths.get(i)))
+                    continue;
+                paths.remove(j);
+                // decrease j because the array got re-indexed
+                j--;
+                // decrease the size of the array
+                size--;
+            } // for j
+        }
     }
 
 
