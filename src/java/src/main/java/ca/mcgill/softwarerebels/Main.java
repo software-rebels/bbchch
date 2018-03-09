@@ -143,7 +143,10 @@ public class Main {
                             length--;
                         }
                         long minutes = Math.abs(TimeUnit.MILLISECONDS.toSeconds(diff)/60);
-                        System.out.printf("%s,%s,%s,%s\n",start.label,projectname,String.valueOf(length),String.valueOf(minutes));
+                        for (Object a : nodes){
+                            System.out.println(((CommitNode)((Node)a).getData()).buildID);
+                        }
+                        System.out.printf("%s,%s,%s,%s,%s,%s\n",start.label,projectname,String.valueOf(length),String.valueOf(minutes),start.buildID,end.buildID);
                     }
                 }
             }

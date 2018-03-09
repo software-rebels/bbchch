@@ -5,6 +5,7 @@ if(!require(ggplot2)){install.packages("ggplot2")}
 #Loading data
 build_data <- fread("../../travistorrent_8_2_2017.csv")
 
+#job_id or build_id?
 failed_job_data <- fread("../../results/job_failure_level.csv", 
                          header=FALSE, 
                          col.names = c("job_id","p_id","p_name","all_jobs","failed_jobs"))
@@ -38,6 +39,8 @@ write.csv(unique(build_data[,get("tr_build_id")]),
           file = "../../results/all_build_ids.csv",
           row.names=FALSE)
 
+n_distinct(build_data[tr_status!="passed",get("gh_project_name")])
+n_distinct(build_data[,get("gh_project_name")])
 build_data[tr_build_id=="106176"]$gh_project_name
 
 build_data[tr_job_id=="106190"]$tr_log_status

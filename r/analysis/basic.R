@@ -3,40 +3,222 @@ if(!require(dplyr)){install.packages("dplyr")}
 if(!require(ggplot2)){install.packages("ggplot2")}
 if(!require(beanplot)){install.packages("beanplot")}
 if(!require(effsize)){install.packages("effsize")}
-
-packageVersion("data.table")
-
+if(!require(scales)){install.packages("scales")}
+if(!require(colorRamps)){install.packages("colorRamps")}
+if(!require(RColorBrewer)){install.packages("RColorBrewer")}
+if(!require(ggthemes)){install.packages("ggthemes")}
 
 #Loading raw data
 build_data <- fread("../../travistorrent_8_2_2017.csv")
 
-n_distinct(build_data[git_trigger_commit==tr_original_commit & gh_is_pr == "TRUE",get("tr_build_id")])
-table(build_data[git_trigger_commit!=tr_original_commit,get("gh_is_pr")])
+df_commit_graph <- unique(build_data[,c("tr_build_id", "git_prev_built_commit","git_trigger_commit","tr_status","gh_project_name","gh_build_started_at")])
+df_commit_graph$git_trigger_commit <- substr(df_commit_graph$git_trigger_commit, 1, 8)
+df_commit_graph$git_prev_built_commit <- substr(df_commit_graph$git_prev_built_commit, 1, 8)
+n_distinct(df_commit_graph$git_trigger_commit)
+
+DT=copy(df_commit_graph)
+DT$git_trigger_commit <- as.factor(DT$git_trigger_commit)
+setorder(DT,-tr_build_id)
+DT_stats <- DT[,.N,by=git_trigger_commit]
+problematic_commits <- DT_stats[N>1,,]$git_trigger_commit
+
+problematic_builds <- DT[(git_trigger_commit %in% problematic_commits),.(tr_build_id),]
+#Using write table instead of write csv to exclude column names
+write.table(unique(problematic_builds),
+            file = "../../results/problematic_builds.csv",
+            sep=",",
+            row.names=FALSE,
+            col.names = FALSE)
+
+event_types <- fread("../../results/event_type.csv")
+colnames(event_types)<- c("build_id","event_type")
+
+setkey(event_types, build_id)
+setkey(problematic_builds, tr_build_id)
+
+common_builds <- event_types[problematic_builds, nomatch=0]
+
+
+
+head(DT)
+#should fix this to get the correct commit
+DT <- DT[, head(.SD, 1), keyby = .(git_trigger_commit)]
+
+#Using write table instead of write csv to exclude column names
+write.table(DT,
+          file = "../../results/commit_graph.csv",
+          sep=",",
+          row.names=FALSE,
+          col.names = FALSE)
+#############################################
+seq_count <- fread("../../results/seq_counts.csv")
+colnames(seq_count) <- c("commit","project_name", "chain_length","broken_time")
+seq_count$project_name <- as.factor(seq_count$project_name)
+seq_count$commit <- as.factor(seq_count$commit)
+seq_count$broken_time <- seq_count$broken_time
+seq_count <- seq_count[broken_time>60 & chain_length>1]
+
+summary(seq_count[,.N,by=.(project_name,commit)])
+proj_with_multiple_seqs <- seq_count[,.N,by=project_name][N>5,,]$project_name
+seq_count <- seq_count[(project_name %in% proj_with_multiple_seqs)]
+
+seq_count_median <- seq_count[, lapply(.SD, median), by=.(project_name), .SDcols=c("broken_time","chain_length")]
+
+#setorder(seq_count,-broken_time)
+#seq_count_max_time <- seq_count[, head(.SD, 1), keyby = .(project_name)]
+seq_count_max <- seq_count[, lapply(.SD, max), by=.(project_name), .SDcols=c("broken_time","chain_length")]
+
+#setorder(seq_count,broken_time)
+#seq_count_min_time <- seq_count[, head(.SD, 1), keyby = .(project_name)]
+seq_count_min <- seq_count[, lapply(.SD, min), by=.(project_name), .SDcols=c("broken_time","chain_length")]
+
+seq_count_median$value_type<-as.factor("median")
+seq_count_max$value_type<-as.factor("max")
+seq_count_min$value_type<-as.factor("min")
+
+summary(seq_count)
+
+######
+# head(seq_count)
+# seq_count <- seq_count[,Med_cl:=NULL]
+# setorder(seq_count,-chain_length)
+# seq_count[, Max_cl:= max(chain_length), project_name]
+# seq_count[, Med_cl= as.numeric(median(chain_length)), project_name]
+# seq_count$project_name <- factor(seq_count$project_name , levels=unique(seq_count$project_name[order(-seq_count$Max_cl)]), ordered=TRUE)
+# head(seq_count)
+# theme_set(theme_tufte())
+# g <- ggplot(seq_count, aes(project_name, chain_length))
+# g + geom_tufteboxplot() + 
+#   theme(axis.text.x = element_text(angle=65, vjust=0.6)) + 
+#   scale_y_log10() + 
+#   labs(title="Failure Sequence Length grouped by Project Name",
+#        x="Project Name",
+#        y="Failure Sequence Length")
+# 
+# g <- ggplot(seq_count, aes(project_name, broken_time))
+# g + geom_tufteboxplot() + 
+#   theme(axis.text.x = element_text(angle=65, vjust=0.6)) + 
+#   labs(title="Failure Sequence Length grouped by Project Name",
+#        x="Project Name",
+#        y="Broken Time")
+# 
+
+######
+
+# broken_time
+setorder(seq_count_min,broken_time)
+seq_count_min$point_colour<-1:length(seq_count_min$project_name)
+colors = seq_count_min[,.(project_name,point_colour)]
+seq_count_min[,c('point_colour'):=NULL]
+setkey(colors,project_name)
+setkey(seq_count_min,project_name)
+setkey(seq_count_median,project_name)
+setkey(seq_count_max,project_name)
+
+seq_count_min <- seq_count_min[colors,nomatch=0]
+seq_count_median <- seq_count_median[colors,nomatch=0]
+seq_count_max <- seq_count_max[colors,nomatch=0]
+full_df <- rbind(seq_count_max,seq_count_median)
+
+# ggplot(data=full_df, aes(x=value_type, group=point_colour, y=broken_time,  color=point_colour)) +
+#   geom_point(alpha=0.2, size=3)+
+#   theme_bw()+
+#   scale_y_log10(breaks=c(1,1e1,1e2,1e3,1e4,1e5,1e6))+
+#   scale_colour_gradient2(low="red", high="blue",
+#                          limits=c(1, 1022), midpoint=1022/2, mid="yellow")+
+#   theme(legend.position="none")
+full_df$project_name <- factor(full_df$project_name , levels=unique(full_df$project_name[order(-full_df$broken_time)]), ordered=TRUE)
+# full_df$value_type <- factor(full_df$value_type, levels=c('min','max','median'))
+full_df$broken_time <- full_df$broken_time/60
+ggplot(full_df, aes(x=project_name,y=broken_time,fill=value_type)) + 
+  geom_bar(stat="identity", position = "identity", alpha=1)+
+  # scale_fill_brewer(palette="Greys", name="Distribution", direction = -1) +
+  scale_fill_manual(values=c("black","lightgrey"))+
+  # scale_fill_colorblind()+
+  scale_y_log10("Broken Time (in Hours)")+
+  theme(legend.position="top",
+        legend.title = element_blank(),
+        axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.text=element_text(size=8),
+        axis.title=element_text(size=8),
+        legend.text=element_text(size=8)
+  )
+ggsave("broken_time_all.pdf", width = 4, height = 2.5)
+
+
+full_df[which.max(full_df$broken_time),]
+seq_count[project_name==full_df[which.max(full_df$broken_time),]$project_name]
+build_data[git_trigger_commit %like% "^7ef1ae5a",,]$tr_build_id
+head(build_data)
+#######
+#chain length
+setorder(seq_count_min,chain_length)
+seq_count_min_time$point_colour<-1:length(seq_count_min$project_name)
+colors = seq_count_min[,.(project_name,point_colour)]
+seq_count_min[,c('point_colour'):=NULL]
+seq_count_max[,c('point_colour'):=NULL]
+seq_count_median[,c('point_colour'):=NULL]
+setkey(colors,project_name)
+setkey(seq_count_min,project_name)
+setkey(seq_count_median,project_name)
+setkey(seq_count_max,project_name)
+
+seq_count_min <- seq_count_min[colors,nomatch=0]
+seq_count_median <- seq_count_median[colors,nomatch=0]
+seq_count_max <- seq_count_max[colors,nomatch=0]
+
+full_df <- rbind(seq_count_min,seq_count_median,seq_count_max)
+
+ggplot(data=full_df, aes(x=value_type, group=point_colour, y=chain_length,  color=point_colour)) +
+  geom_point(alpha=0.5, size=3)+
+  geom_line()+
+  theme_bw()+
+  scale_y_log10()+
+  scale_colour_gradient2(low="red", high="blue",
+                         limits=c(1, 1022), midpoint=1022/2, mid="yellow")+
+  theme(legend.position="none")
+
+head(full_df)
+
+
+#############################################
 lf <- unique(build_data[,c("tr_build_id", "git_prev_built_commit","git_trigger_commit","tr_status")])
+lf <- lf[, head(.SD, 1), keyby = .(git_trigger_commit)]
+rf <- copy(lf)
 colnames(lf) <- paste("l", colnames(lf), sep = "_")
-rf <- unique(build_data[,c("tr_build_id", "git_prev_built_commit","git_trigger_commit","tr_status")])
 colnames(rf) <- paste("r", colnames(rf), sep = "_")
 
 setkey(lf, l_git_trigger_commit)
 setkey(rf, r_git_prev_built_commit)
 
 x_joined <- lf[rf, nomatch=0]
+
 x_joined[,branch_count := .N,by= .(l_git_trigger_commit)]
+
+#isolating examples
+x_joined[l_tr_status!="passed" & r_tr_status!="passed" & branch_count > 1]
+
 x_failed <- x_joined[l_tr_status!="passed", head(.SD,1) , by = l_git_trigger_commit]
 
 x_ff <- x_joined[l_tr_status!="passed" & r_tr_status!="passed", head(.SD,1) , by = l_git_trigger_commit]
 
-hist(x_ff[branch_count>1 & branch_count < 12]$branch_count,breaks=10)
-hist_ff <- x_ff[branch_count>1 & branch_count < 12,.(ff_N = .N),by=branch_count]
+# Checking how it looks 
+hist(x_ff[branch_count>1]$branch_count,breaks=10)
+hist(x_failed[branch_count>1]$branch_count,breaks=10)
 
-hist(x_failed[branch_count>1 & branch_count < 12]$branch_count,breaks=10)
-hist_f <- x_failed[branch_count>1 & branch_count < 12,.(f_N = .N),by=branch_count]
+hist_ff <- x_ff[branch_count>1,.(ff_N = .N),by=branch_count]
+hist_f <- x_failed[branch_count>1,.(f_N = .N),by=branch_count]
 
 summary(x_joined[,.N,by= .(l_git_trigger_commit)])
 hist(x_joined[,.N,by= .(l_git_trigger_commit)][N>1 & N<12,,]$N, breaks=10)
 table(x_joined[,.N,by= .(l_git_trigger_commit)][N>1,,]$N)
+samplex <- x_joined[,.N,by= .(l_git_trigger_commit)][N>1,,]
+setorder(samplex,-N)
+samplex
 
-hist_a <- x_joined[,.N,by= .(l_git_trigger_commit)][N>1 & N<12,.(a_N = .N),by=N]
+hist_a <- x_joined[,.N,by= .(l_git_trigger_commit)][,.(a_N = .N),by=N]
 
 setkey(hist_a, N)
 setkey(hist_f, branch_count)
@@ -45,16 +227,22 @@ setkey(hist_ff, branch_count)
 x_af <- hist_a[hist_f, nomatch=0]
 x_aff <- x_af[hist_ff, nomatch=0]
 
-x_af$perc <- with(x_af,  f_N/a_N)
+x_aff$perc_f <- with(x_af,  f_N*100/a_N)
+x_aff$perc_ff <- with(x_aff,  ff_N*100/a_N)
 
-colnames(x_aff) <- c("branch_count","all_builds","failed_builds","failed_builds_after_branching")
-dfm <- melt(x_aff[,c('branch_count','failed_builds_after_branching','failed_builds','all_builds')],id.vars = 1,
-            value.name = "instance_count")
+#Last 2 columns should be percentages and should not have spaces. But this is easier than struggling to change legend labels (Just R things)
+colnames(x_aff) <- c("branch_count","all_builds","failed_builds","failed_builds_after_branching","Failed","Failed After Branching")
+dfm <- melt(x_aff[,c('branch_count','Failed After Branching','Failed')],id.vars = 1,
+            value.name = "Percentage")
 
-ggplot(dfm,aes(x = branch_count,y = instance_count)) + 
+theme_set(theme_bw())
+(p = ggplot(dfm,aes(x = branch_count,y = Percentage)) + 
   geom_bar(aes(fill = variable),stat = "identity",position = "dodge") +
-  scale_x_continuous(breaks=0:11) +
-  scale_y_log10()
+  labs(x="# of Branches", y="% of Builds", fill="Type of Builds:")+
+  scale_x_continuous(breaks=0:12) +
+  scale_y_log10() + theme(text = element_text(size=16))+theme(legend.background = element_rect(size=0.5, linetype="solid", 
+                                                                                               colour ="black")))
+(p = p + scale_fill_grey(start = 0, end = .9)+theme(legend.position="bottom"))
 
 ########################################
 
@@ -78,10 +266,12 @@ allow_failure_status <- fread("../../results/allow_failure_status.csv",
                          col.names = c("p_name","build_id","build_result","build_status","job_result","allow_failure"))
 
 #List of projects with failed builds
-write.csv(unique(build_data[tr_status=="failed",
+write.csv(unique(build_data[tr_status!="passed",
                             get("gh_project_name")]), 
           file = "../../results/projects_with_failed_builds.csv",
           row.names=FALSE)
+#1276 vs 1252
+#n_distinct(build_data[tr_status!="passed",get("gh_project_name")])
 
 write.csv(unique(build_data[tr_status=="failed",
                             get("tr_build_id","gh_project_name")]), 
@@ -107,6 +297,8 @@ summary(failed_job_data)
 quantile(failed_job_data$perc, 0.447)
 #Result1: Not all jobs fail in at least 44% of the failed builds
 
+################################################################################
+
 # Percentage of pull requests
 df1 <- build_data[, head(.SD,1) , by = tr_build_id][,.N,by="gh_is_pr"]
 df1$Perc <- df1$N / sum(df1$N) * 100
@@ -122,9 +314,9 @@ df3$gh_is_pr <- as.factor(df3$gh_is_pr)
 
 # Beanplot
 beanplot(perc ~ gh_is_pr+tr_status, data = df3, ll = 0.02, na.rm = TRUE,
-         main = "Percentage of outcomes in non-PR and PR builds", ylab = "Percentage", xlab = "Build Status", side = "both" ,
-         border = NA, col = list(c("lightblue", "black"), c("purple", "black")), log="", bw="nrd0", ylim = c(1, 100))
-legend("topleft", fill = c("lightblue", "purple"),
+         main =  NULL, ylab = "Percentage", xlab = "Build Status", side = "both" ,
+         border = NA, col = list(c("lightgrey", "black"), c("darkgrey", "black")), log="", bw="nrd0", ylim = c(1, 100))
+legend("topleft", fill = c("lightgrey", "darkgrey"),
        legend = unique(df3$gh_is_pr))
 
 
@@ -155,6 +347,57 @@ n_distinct(df3[,get("gh_project_name")])
 wilcox.test(failed_builds_filled[gh_is_pr=="FALSE",perc], failed_builds_filled[gh_is_pr=="TRUE",perc], paired = TRUE)
 
 
+#################################################################
+
+# Doing the same tests to decide being a core team member changes anything
+
+# Percentage of builds by core team member
+df1 <- build_data[, head(.SD,1) , by = tr_build_id][,.N,by="gh_by_core_team_member"]
+df1$Perc <- df1$N / sum(df1$N) * 100
+
+# Percentage of build status based on pull requests or not
+df2 <- build_data[, head(.SD,1) , by = tr_build_id][,.N,by=.(tr_status,gh_is_pr)][, `perc` := `N` / sum( `N` ) * 100,by='gh_by_core_team_member']
+#Result2: If it's a PR, build passing rate is slightly higher.
+
+df3 <- build_data[,head(.SD,1) , by = tr_build_id][,.N,by=.(gh_project_name,tr_status,gh_by_core_team_member)][, `perc` := `N` / sum( `N` ) * 100,by=.(gh_project_name,gh_by_core_team_member)]
+head(df3[gh_project_name=="rails/rails"])
+df3$tr_status <- as.factor(df3$tr_status)
+df3$gh_by_core_team_member <- as.factor(df3$gh_by_core_team_member)
+
+# Beanplot
+beanplot(perc ~ gh_by_core_team_member+tr_status, data = df3, ll = 0.02, na.rm = TRUE,
+         main =  NULL, ylab = "Percentage", xlab = "Build Status", side = "both" ,
+         border = NA, col = list(c("lightgrey", "black"), c("darkgrey", "black")), log="", bw="nrd0", ylim = c(1, 100))
+legend("topleft", fill = c("lightgrey", "darkgrey"),
+       legend = unique(df3$gh_by_core_team_member))
+
+
+setkey(df3,gh_by_core_team_member,gh_project_name,tr_status)
+df3_filled <- df3[CJ(unique(gh_by_core_team_member), unique(gh_project_name), unique(tr_status))]
+
+f <- df3_filled[tr_status=='canceled',]
+wilcox.test(f[gh_by_core_team_member=="FALSE",perc], f[gh_by_core_team_member=="TRUE",perc], paired = TRUE)
+cliff.delta(f[gh_by_core_team_member=="FALSE",perc],f[gh_by_core_team_member=="TRUE",perc])
+
+f <- df3_filled[tr_status=='failed',]
+wilcox.test(f[gh_by_core_team_member=="FALSE",perc], f[gh_by_core_team_member=="TRUE",perc], paired = TRUE)
+cliff.delta(f[gh_by_core_team_member=="FALSE",perc],f[gh_by_core_team_member=="TRUE",perc])
+
+f <- df3_filled[tr_status=='errored',]
+wilcox.test(f[gh_by_core_team_member=="FALSE",perc], f[gh_by_core_team_member=="TRUE",perc], paired = TRUE)
+cliff.delta(f[gh_by_core_team_member=="FALSE",perc],f[gh_by_core_team_member=="TRUE",perc])
+
+f <- df3_filled[tr_status=='passed',]
+wilcox.test(f[gh_by_core_team_member=="FALSE",perc], f[gh_by_core_team_member=="TRUE",perc], paired = TRUE)
+cliff.delta(f[gh_by_core_team_member=="FALSE",perc],f[gh_by_core_team_member=="TRUE",perc])
+
+setkey(failed_builds,gh_is_pr,gh_project_name)
+failed_builds_filled <- failed_builds[CJ(unique(gh_is_pr), unique(gh_project_name))]
+length(failed_builds_filled[gh_is_pr=="TRUE",perc])
+length(failed_builds_filled[gh_is_pr=="FALSE",perc])
+n_distinct(df3[,get("gh_project_name")])
+wilcox.test(failed_builds_filled[gh_is_pr=="FALSE",perc], failed_builds_filled[gh_is_pr=="TRUE",perc], paired = TRUE)
+
 # Beanplot
 beanplot(N ~ gh_is_pr+tr_status, data = df3, ll = 0.02, na.rm = TRUE,
          main = "", ylab = "Percentage", side = "both" ,
@@ -162,7 +405,7 @@ beanplot(N ~ gh_is_pr+tr_status, data = df3, ll = 0.02, na.rm = TRUE,
 legend("topleft", fill = c("lightblue", "purple"),
        legend = unique(df3$gh_is_pr))
 
-
+######################################################################################
 
 # In 13 instances, job failed but build passed for some unknown reason.
 allow_failure_status[job_result=="1" & build_result=="0" & allow_failure==FALSE,.N,by=.(p_name,build_id)]
@@ -172,7 +415,9 @@ allow_failure_status[job_result=="2" & build_result=="0" & allow_failure==FALSE,
 df3 <- allow_failure_status[,.N,by=.(job_result,allow_failure)][, `perc` := `N` / sum( `N` ) * 100,by='job_result']
 df4 <- allow_failure_status[build_result=="0",.N,by=.(job_result,allow_failure)][, `perc` := `N` / sum( `N` ) * 100,by='job_result']
 # 12% of passed builds have an ignored failure
-length(unique(subset(allow_failure_status,build_result=='0' & job_result != '0')$build_id))
+count_builds_passing_with_active_faioures = length(unique(subset(allow_failure_status,build_result=='0' & job_result != '0')$build_id))
+count_all_builds_passing = length(unique(subset(allow_failure_status,build_result=='0')$build_id))
+count_builds_passing_with_active_faioures/count_all_builds_passing
 
 #How many ignored failed builds are there in passing builds
 ignored_jobs <- allow_failure_status[build_result=='0' & job_result != '0' & allow_failure == TRUE,.N,by= .(build_id)][N<20,,]
@@ -180,7 +425,174 @@ hist(ignored_jobs$N, breaks=20, xlab="No. of ignored failed jobs", main="Ignored
 
 #What percentage of ignored failed builds are there in passing builds
 hist(allow_failure_status[build_result=='0',.(perc=sum(job_result != '0' & allow_failure == TRUE)*100/.N),by=.(build_id)][perc>0,,]$perc,
-     breaks=15, xlab="Percentage of ignored failed jobs", main="Ignored failed jobs in passing jobsets")
+     breaks=15, xlab="Percentage of ignored failed jobs", main=NULL)
+############################
+
+# Signal-to-Noise Ratio Calculation
+# Singal to noise ratio = (true build failures+true build successes)/(failse build failures+false build successes)
+
+head(allow_failure_status)
+unique(allow_failure_status[build_result!='0',.(p_name),])
+#1494
+snr_results = data.table(unique(build_data[tr_status!="passed",.(gh_project_name)]))
+#1276
+setkey(snr_results,gh_project_name)
+
+all_passes = unique(build_data[tr_status=='passed',.(gh_project_name,tr_build_id),])
+all_passes_count = all_passes[,.(ap=.N),by=.(gh_project_name)]
+false_passes = unique(allow_failure_status[build_result=='0' & job_result != '0' & allow_failure == TRUE,.(p_name,build_id),])
+false_passes_count = false_passes[,.(fp=.N),by=.(p_name)]
+all_failures = unique(build_data[tr_status!='passed',.(gh_project_name,tr_build_id),])
+all_failures_count = all_failures[,.(af=.N),by=.(gh_project_name)]
+
+setkey(all_passes_count,gh_project_name)
+setkey(false_passes_count,p_name)
+setkey(all_failures_count,gh_project_name)
+
+#this is to clean up residual from a previous run. not needed for computed ones ie tp
+snr_results[,c('ap'):=NULL]
+snr_results[,c('af'):=NULL]
+snr_results[,c('fp'):=NULL]
+# leftjoin Y[x]
+snr_results <- all_passes_count[snr_results]
+snr_results <- false_passes_count[snr_results]
+snr_results <- all_failures_count[snr_results]
+snr_results[is.na(snr_results)] <- 0;
+#can use 'within' also here
+snr_results$tp <- with(snr_results, ap-fp)
+summary(snr_results)
+summary(seq_count)
+seq_count <- seq_count[,bcount:=.N,by=.(project_name,commit)]
+max(seq_count$chain_length)
+#plot begins (ignoring branches. bcount>0)
+plot_snr <- function(j) {
+  snr_global <- NULL
+  threshold_b <- j
+  # This is not changing based on threshold
+  false_failures_count <-seq_count[bcount > threshold_b, sum(chain_length), by = project_name]
+  names(false_failures_count) <- c("project_name", "ff")
+  setkey(false_failures_count, project_name)
+  #this is to clean up residual from a previous run. not needed for computed ones ie tp
+  snr_results[, c('ff') := NULL]
+  snr_results <- false_failures_count[snr_results]
+  
+  for (i in 1:max(seq_count$chain_length)) {
+    threshold <- i
+    
+    false_failures_detected_count <-seq_count[chain_length > threshold & bcount > threshold_b, sum(chain_length), by = project_name]
+    names(false_failures_detected_count) <- c("project_name", "ffd")
+    setkey(false_failures_detected_count, project_name)
+    
+    
+    
+    #this is to clean up residual from a previous run. not needed for computed ones ie tp
+    snr_results[, c('ffd') := NULL]
+    snr_results <- false_failures_detected_count[snr_results]
+    snr_results[is.na(snr_results)] <- 0
+    
+    snr_results$tf <- with(snr_results, af - ff)
+    snr_results$ffu <- with(snr_results, ff-ffd)
+    global_sums <-
+      snr_results[, lapply(.SD, sum), .SDcols = -c("project_name")]
+    snr <- with(global_sums, (tf + tp ) / (fp + ffu))
+    nobs <- with(global_sums, (tf + tp + ffu+ fp))
+    print(nobs)
+    snr_global = rbind(snr_global, data.frame(threshold, snr,nobs))
+  }
+  summary(snr_global)
+  # ggplot(data=snr_global, aes(x=threshold, y=snr)) +
+  #   geom_line()+theme_bw()+labs(x = "Build Failure Sequence Length Threshold", y="Signal-to-Noise Ratio")
+  
+  p <- ggplot(snr_global, aes(x = threshold))
+  p <- p + geom_line(aes(y = snr, colour = "SNR"))
+  
+  # adding the relative humidity data, transformed to match roughly the range of the temperature
+  p <- p + geom_line(aes(y = nobs/80000, colour = "Observations"))
+  
+  # now adding the secondary axis, following the example in the help file ?scale_y_continuous
+  # and, very important, reverting the above transformation
+  p <- p + scale_y_continuous(sec.axis = sec_axis(~.*80000, name = "Observations"))
+  
+  # modifying colours and theme options
+  p <- p + scale_colour_manual(values = c("blue", "red"))
+  p <- p + labs(y = "Signal-to-Noise Ratio",
+                x = "Build Failure Sequence Length Threshold",
+                colour = "Parameter")
+  p <- p + theme(legend.position = c(0.8, 0.9)) + theme_bw()
+  p
+}
+
+#SNR for all cases
+plot_snr(0)
+
+#SNR only for branched cases
+plot_snr(1)
+
+
+plot_everything <- function(j) {
+  snr_global <- NULL
+  threshold_b <- j
+
+  
+  for (i in 1:max(seq_count$chain_length)) {
+    threshold <- i
+    
+    false_failures_detected_count <-seq_count[chain_length > threshold & bcount > threshold_b, sum(chain_length), by = project_name]
+    names(false_failures_detected_count) <- c("project_name", "ff")
+    setkey(false_failures_detected_count, project_name)
+    
+    #this is to clean up residual from a previous run. not needed for computed ones ie tp
+    snr_results[, c('ff') := NULL]
+    snr_results <- false_failures_detected_count[snr_results]
+    snr_results[is.na(snr_results)] <- 0
+    
+    snr_results$tf <- with(snr_results, af - ff)
+    global_sums <-
+      snr_results[, lapply(.SD, sum), .SDcols = -c("project_name")]
+    snr <- with(global_sums, (tf + tp ) / (fp + ff))
+    nobs <- with(global_sums, (tf + tp))
+    print(global_sums$ff)
+    snr_global = rbind(snr_global, data.frame(threshold, snr,nobs,threshold_b))
+  }
+  # ggplot(data=snr_global, aes(x=threshold, y=snr)) +
+  #   geom_line()+theme_bw()+labs(x = "Build Failure Sequence Length Threshold", y="Signal-to-Noise Ratio")
+  # 
+  return(snr_global)
+
+}
+
+#SNR for all cases
+result1 <- plot_everything(0)
+result2 <- plot_everything(1)
+res <- rbind(result1,result2)
+res$threshold_b <- as.factor(res$threshold_b)
+ggplot(data=res, aes(x=threshold, y=snr, group=threshold_b)) +
+  geom_line()+theme_bw()+labs(x = "Build Failure Sequence Length Threshold", y="Signal-to-Noise Ratio")
+
+p <- ggplot(res, aes(x = threshold))
+p <- p + geom_line(aes(y = snr, colour = threshold_b,group=threshold_b))
+# adding the relative humidity data, transformed to match roughly the range of the temperature
+# p <- p + geom_line(aes(y = nobs/80000, colour =threshold_b,group=threshold_b), linetype="dashed") + scale_x_log10()
+# # now adding the secondary axis, following the example in the help file ?scale_y_continuous
+# # and, very important, reverting the above transformation
+# p <- p + scale_y_continuous(sec.axis = sec_axis(~.*80000, name = "Observations")) + scale_x_log10()
+# # modifying colours and theme options
+p <- p + scale_colour_manual(values = c("darkgrey", "black"),labels = c("Overall", "Branches-only"))
+p <- p + labs(y = "Signal-to-Noise Ratio",
+              x = "Build Failure Sequence Length Threshold",
+              colour = "Parameter")
+p <- p + theme_bw() + theme(legend.position=c(.8, .8), legend.background = element_rect(size=0.5, linetype="solid", 
+                                                                                        colour ="black")) 
+p
+
+
+
+
+
+
+
+
+###########
 
 # (Results of jobs + Did developers silenced the failures) For all builds
 maven_job_status <- fread("../../results/maven_build_status_analysis.csv", 
@@ -190,3 +602,4 @@ maven_job_status <- fread("../../results/maven_build_status_analysis.csv",
 summary(maven_job_status)
 maven_job_status$status <- as.factor(maven_job_status$status)
 maven_job_status[,.N,by=.(status)]
+

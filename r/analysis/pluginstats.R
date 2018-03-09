@@ -4,6 +4,8 @@ if(!require(ggplot2)){install.packages("ggplot2")}
 if(!require(beanplot)){install.packages("beanplot")}
 if(!require(effsize)){install.packages("effsize")}
 
+install.packages("Rcmdr")
+
 # copied from MLA and .txt extension removed from the 3rd column
 plugin_data <- fread("../../results/pluginoutput.txt", 
                      sep=";", 
