@@ -63,7 +63,7 @@ def main(argv):
                 if results["tag"] and results["tag"]["name"]:
                     tag = results["tag"]["name"]
 
-                output = [str(counter),event_type,tag]
+                output = [build_id,event_type,tag]
                 print(','.join(map(str, output)))
 
 
