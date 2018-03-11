@@ -54,7 +54,6 @@ def main(argv):
                         time.sleep(300)
                         continue
 
-                time.sleep(1)
                 results = r.json()
 
                 if results["event_type"]:
