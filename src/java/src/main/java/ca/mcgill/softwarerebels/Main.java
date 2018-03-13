@@ -104,7 +104,6 @@ public class Main {
             }
 
         }
-        String[] fields = {"tr_build_id", "git_prev_built_commit", "git_trigger_commit", "tr_status", "gh_project_name"};
 
         //Second iteration
 
@@ -142,7 +141,7 @@ public class Main {
                             diff = end.buildTime.getTime() - start.buildTime.getTime();
                             length--;
                         }
-                        long minutes = Math.abs(TimeUnit.MILLISECONDS.toSeconds(diff)/60);
+                        long minutes = TimeUnit.MILLISECONDS.toSeconds(diff)/60;
                         for (Object a : nodes){
                             System.out.println(((CommitNode)((Node)a).getData()).buildID);
                         }

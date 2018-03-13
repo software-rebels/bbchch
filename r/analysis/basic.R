@@ -11,6 +11,7 @@ if(!require(ggthemes)){install.packages("ggthemes")}
 #Loading raw data
 build_data <- fread("../../travistorrent_8_2_2017.csv")
 
+
 df_commit_graph <- unique(build_data[,c("tr_build_id", "git_prev_built_commit","git_trigger_commit","tr_status","gh_project_name","gh_build_started_at")])
 df_commit_graph$git_trigger_commit <- substr(df_commit_graph$git_trigger_commit, 1, 8)
 df_commit_graph$git_prev_built_commit <- substr(df_commit_graph$git_prev_built_commit, 1, 8)
@@ -38,11 +39,33 @@ setkey(problematic_builds, tr_build_id)
 
 common_builds <- event_types[problematic_builds, nomatch=0]
 
+event_types <- fread("../../results/event_type_prob_builds_only.csv")
+colnames(event_types)<- c("build_id","event_type","tag")
+head(event_types)
+n_distinct(event_types[event_type %in% c("pull_request"),.(build_id),])
+event_types[,.N,by=event_type]
+setkey(event_types,build_id)
+setkey(DT,tr_build_id)
+DT <- event_types[DT]
 
+DT[tr_build_id=='155423746',,]
+DT[git_trigger_commit=='2c717421']
+DT[is.na(tag),tag:='null']
+temp <- DT[!(event_type %in% c("cron","api")),,]
+#676414
+nrow(temp)
+DT <- temp[tag=='null',,]
+nrow(DT)
+#659048
+
+setorder(DT, build_id)
 
 head(DT)
 #should fix this to get the correct commit
 DT <- DT[, head(.SD, 1), keyby = .(git_trigger_commit)]
+n_distinct(DT$git_trigger_commit)
+
+DT <- DT[, !c("event_type","tag"), with=FALSE]
 
 #Using write table instead of write csv to exclude column names
 write.table(DT,
@@ -237,12 +260,14 @@ dfm <- melt(x_aff[,c('branch_count','Failed After Branching','Failed')],id.vars 
 
 theme_set(theme_bw())
 (p = ggplot(dfm,aes(x = branch_count,y = Percentage)) + 
-  geom_bar(aes(fill = variable),stat = "identity",position = "dodge") +
+  geom_bar(aes(fill = variable),stat = "identity",position = "identity", color="black", alpha=.3) +
   labs(x="# of Branches", y="% of Builds", fill="Type of Builds:")+
   scale_x_continuous(breaks=0:12) +
-  scale_y_log10() + theme(text = element_text(size=16))+theme(legend.background = element_rect(size=0.5, linetype="solid", 
-                                                                                               colour ="black")))
-(p = p + scale_fill_grey(start = 0, end = .9)+theme(legend.position="bottom"))
+  theme(text = element_text(size=16),
+        legend.background = element_rect(size=0.5, linetype="solid",colour ="black"),
+        legend.position="bottom"
+        ))
+(p = p + scale_fill_grey(start = 0, end = .9))
 
 ########################################
 
