@@ -1,3 +1,5 @@
+#Load Libaries###########################
+
 if(!require(data.table)){install.packages("data.table")}
 if(!require(dplyr)){install.packages("dplyr")}
 if(!require(ggplot2)){install.packages("ggplot2")}
@@ -11,6 +13,7 @@ if(!require(ggthemes)){install.packages("ggthemes")}
 #Loading raw data
 build_data <- fread("../../travistorrent_8_2_2017.csv")
 
+#Build Commit Graph ##################################
 
 df_commit_graph <- unique(build_data[,c("tr_build_id", "git_prev_built_commit","git_trigger_commit","tr_status","gh_project_name","gh_build_started_at")])
 df_commit_graph$git_trigger_commit <- substr(df_commit_graph$git_trigger_commit, 1, 8)
@@ -39,7 +42,7 @@ setkey(problematic_builds, tr_build_id)
 
 common_builds <- event_types[problematic_builds, nomatch=0]
 
-event_types <- fread("../../results/event_type_prob_builds_only.csv")
+event_types <- fread("../../results/event_type_all.csv")
 colnames(event_types)<- c("build_id","event_type","tag")
 head(event_types)
 n_distinct(event_types[event_type %in% c("pull_request"),.(build_id),])
@@ -48,7 +51,7 @@ setkey(event_types,build_id)
 setkey(DT,tr_build_id)
 DT <- event_types[DT]
 
-DT[tr_build_id=='155423746',,]
+DT[build_id=='155423746',,]
 DT[git_trigger_commit=='2c717421']
 DT[is.na(tag),tag:='null']
 temp <- DT[!(event_type %in% c("cron","api")),,]
@@ -56,7 +59,7 @@ temp <- DT[!(event_type %in% c("cron","api")),,]
 nrow(temp)
 DT <- temp[tag=='null',,]
 nrow(DT)
-#659048
+#656677
 
 setorder(DT, build_id)
 
@@ -73,17 +76,25 @@ write.table(DT,
           sep=",",
           row.names=FALSE,
           col.names = FALSE)
-#############################################
-seq_count <- fread("../../results/seq_counts.csv")
-colnames(seq_count) <- c("commit","project_name", "chain_length","broken_time")
+
+#Sequence Counts Analysis for passively ignored #############################################
+seq_count <- fread("../../results/seq_counts_full.csv")
+colnames(seq_count) <- c("commit","project_name", "chain_length","broken_time","start_build","end_build")
 seq_count$project_name <- as.factor(seq_count$project_name)
 seq_count$commit <- as.factor(seq_count$commit)
 seq_count$broken_time <- seq_count$broken_time
+summary(seq_count)
+
+#In 13,102 builds that were not immediately fixed, several commits appear before the fix does.
+nrow(seq_count[chain_length>1])
+n_distinct(seq_count[chain_length>1]$project_name)
+n_distinct(seq_count[broken_time>60 & chain_length>1]$project_name)
 seq_count <- seq_count[broken_time>60 & chain_length>1]
 
 summary(seq_count[,.N,by=.(project_name,commit)])
-proj_with_multiple_seqs <- seq_count[,.N,by=project_name][N>5,,]$project_name
-seq_count <- seq_count[(project_name %in% proj_with_multiple_seqs)]
+proj_with_multiple_seqs <- unique(seq_count[,.N,by=project_name][N>5,,]$project_name)
+
+seq_count$broken_time <- seq_count$broken_time/60
 
 seq_count_median <- seq_count[, lapply(.SD, median), by=.(project_name), .SDcols=c("broken_time","chain_length")]
 
@@ -91,6 +102,26 @@ seq_count_median <- seq_count[, lapply(.SD, median), by=.(project_name), .SDcols
 #seq_count_max_time <- seq_count[, head(.SD, 1), keyby = .(project_name)]
 seq_count_max <- seq_count[, lapply(.SD, max), by=.(project_name), .SDcols=c("broken_time","chain_length")]
 
+summary(seq_count_max)
+n_distinct(seq_count_max$project_name)
+summary(seq_count_max[broken_time>24,,])
+n_distinct(seq_count_max[broken_time>24,,]$project_name)
+summary(seq_count_max[broken_time>24*7,,])
+n_distinct(seq_count_max[broken_time>24*7,,]$project_name)
+summary(seq_count_max[broken_time>24*30,,])
+n_distinct(seq_count_max[broken_time>24*30,,]$project_name)
+summary(seq_count_max[broken_time>24*365,,])
+n_distinct(seq_count_max[broken_time>24*365,,]$project_name)
+
+# Median Range 2 - 26
+summary(seq_count_median[(project_name %in% seq_count_max[broken_time>24,,]$project_name)])
+# Median Range 2 - 26
+summary(seq_count_median[(project_name %in% seq_count_max[broken_time>24*7,,]$project_name)])
+# Median Range 2 - 12.50
+summary(seq_count_median[(project_name %in% seq_count_max[broken_time>24*30,,]$project_name)])
+# Median Range 2 - 12.50
+summary(seq_count_median[(project_name %in% seq_count_max[broken_time>24*365,,]$project_name)])
+summary(seq_count_median$chain_length)
 #setorder(seq_count,broken_time)
 #seq_count_min_time <- seq_count[, head(.SD, 1), keyby = .(project_name)]
 seq_count_min <- seq_count[, lapply(.SD, min), by=.(project_name), .SDcols=c("broken_time","chain_length")]
@@ -101,7 +132,7 @@ seq_count_min$value_type<-as.factor("min")
 
 summary(seq_count)
 
-######
+
 # head(seq_count)
 # seq_count <- seq_count[,Med_cl:=NULL]
 # setorder(seq_count,-chain_length)
@@ -126,9 +157,8 @@ summary(seq_count)
 #        y="Broken Time")
 # 
 
-######
+# broken time graph######
 
-# broken_time
 setorder(seq_count_min,broken_time)
 seq_count_min$point_colour<-1:length(seq_count_min$project_name)
 colors = seq_count_min[,.(project_name,point_colour)]
@@ -143,6 +173,8 @@ seq_count_median <- seq_count_median[colors,nomatch=0]
 seq_count_max <- seq_count_max[colors,nomatch=0]
 full_df <- rbind(seq_count_max,seq_count_median)
 
+#we only consider projects with at least 5 sequences for the graph
+full_df <- full_df[(project_name %in% proj_with_multiple_seqs)]
 # ggplot(data=full_df, aes(x=value_type, group=point_colour, y=broken_time,  color=point_colour)) +
 #   geom_point(alpha=0.2, size=3)+
 #   theme_bw()+
@@ -152,15 +184,67 @@ full_df <- rbind(seq_count_max,seq_count_median)
 #   theme(legend.position="none")
 full_df$project_name <- factor(full_df$project_name , levels=unique(full_df$project_name[order(-full_df$broken_time)]), ordered=TRUE)
 # full_df$value_type <- factor(full_df$value_type, levels=c('min','max','median'))
-full_df$broken_time <- full_df$broken_time/60
-ggplot(full_df, aes(x=project_name,y=broken_time,fill=value_type)) + 
+# full_df$broken_time <- full_df$broken_time/60
+
+theme_set(theme_few())
+g <- ggplot(full_df, aes(x=project_name,y=broken_time,fill=value_type)) + 
   geom_bar(stat="identity", position = "identity", alpha=1)+
   # scale_fill_brewer(palette="Greys", name="Distribution", direction = -1) +
   scale_fill_manual(values=c("black","lightgrey"))+
   # scale_fill_colorblind()+
-  scale_y_log10("Broken Time (in Hours)")+
-  theme(legend.position="top",
+  scale_y_continuous(name="Broken Time (in log scale)", 
+                     breaks=c(1,24,24*7,24*30,24*365),
+                     labels=c("1 Hour","1 Day","1 Week", "1 Month","1 Year"),
+                              trans="log10")+
+  # scale_y_log10("Broken Time (in logscale)")+
+  theme(legend.position = c(0.8, 0.8),
         legend.title = element_blank(),
+        legend.background = element_rect(size=0.25,colour ="black"),
+        # axis.title.x=element_blank(),
+        # axis.text.x=element_blank(),
+        # axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.text=element_text(size=8),
+        axis.title=element_text(size=8),
+        legend.text=element_text(size=8)
+  )
+g+coord_flip()+
+  geom_hline(yintercept = 24, size = 0.5, linetype=2, color="black")+
+  geom_hline(yintercept = 24*7, size = 0.5, linetype=2, color ="grey")+
+  geom_hline(yintercept = 24*30, size = 0.5, linetype=2, color ="grey")+
+  geom_hline(yintercept = 24*365, size = 0.5, linetype=2, color ="grey")
+  # annotate(geom = "text", x = 18, y = 24, label = "1 Day", vjust=-1, color = "red", angle = -90)
+ggsave("broken_time_all.pdf", width = 4, height = 2.5)
+
+
+full_df[which.max(full_df$broken_time),]
+seq_count[project_name=='orbeon/orbeon-forms' & broken_time>10145*60,,]
+build_data[git_trigger_commit %like% "^7ef1ae5a",,]$tr_build_id
+
+n_distinct(full_df$project_name)
+
+full_df[which.max(full_df$chain_length),]
+seq_count[project_name=='orbeon/orbeon-forms' & chain_length==485,,]
+
+10145/24
+
+#chain length graph ##########################
+
+full_df$project_name <- factor(full_df$project_name , levels=unique(full_df$project_name[order(-full_df$chain_length)]), ordered=TRUE)
+
+
+theme_set(theme_few())
+ggplot(full_df, aes(x=project_name,y=chain_length,fill=value_type)) + 
+  geom_bar(stat="identity", position = "identity", alpha=1)+
+  # scale_fill_brewer(palette="Greys", name="Distribution", direction = -1) +
+  scale_fill_manual(values=c("black","lightgrey"))+
+  # scale_fill_colorblind()+
+  scale_y_log10("Length of failed build sequence")+
+  theme(legend.position = c(0.8, 0.8),
+        legend.title = element_blank(),
+        legend.background = element_rect(size=0.25,colour ="black"),
         axis.title.x=element_blank(),
         axis.text.x=element_blank(),
         axis.ticks.x=element_blank(),
@@ -168,45 +252,39 @@ ggplot(full_df, aes(x=project_name,y=broken_time,fill=value_type)) +
         axis.title=element_text(size=8),
         legend.text=element_text(size=8)
   )
-ggsave("broken_time_all.pdf", width = 4, height = 2.5)
+ggsave("seq_length_all.pdf", width = 4, height = 2.5)
 
 
-full_df[which.max(full_df$broken_time),]
-seq_count[project_name==full_df[which.max(full_df$broken_time),]$project_name]
-build_data[git_trigger_commit %like% "^7ef1ae5a",,]$tr_build_id
-head(build_data)
-#######
-#chain length
-setorder(seq_count_min,chain_length)
-seq_count_min_time$point_colour<-1:length(seq_count_min$project_name)
-colors = seq_count_min[,.(project_name,point_colour)]
-seq_count_min[,c('point_colour'):=NULL]
-seq_count_max[,c('point_colour'):=NULL]
-seq_count_median[,c('point_colour'):=NULL]
-setkey(colors,project_name)
-setkey(seq_count_min,project_name)
-setkey(seq_count_median,project_name)
-setkey(seq_count_max,project_name)
-
-seq_count_min <- seq_count_min[colors,nomatch=0]
-seq_count_median <- seq_count_median[colors,nomatch=0]
-seq_count_max <- seq_count_max[colors,nomatch=0]
-
-full_df <- rbind(seq_count_min,seq_count_median,seq_count_max)
-
-ggplot(data=full_df, aes(x=value_type, group=point_colour, y=chain_length,  color=point_colour)) +
-  geom_point(alpha=0.5, size=3)+
-  geom_line()+
-  theme_bw()+
-  scale_y_log10()+
-  scale_colour_gradient2(low="red", high="blue",
-                         limits=c(1, 1022), midpoint=1022/2, mid="yellow")+
-  theme(legend.position="none")
-
-head(full_df)
+# setorder(seq_count_min,chain_length)
+# seq_count_min_time$point_colour<-1:length(seq_count_min$project_name)
+# colors = seq_count_min[,.(project_name,point_colour)]
+# seq_count_min[,c('point_colour'):=NULL]
+# seq_count_max[,c('point_colour'):=NULL]
+# seq_count_median[,c('point_colour'):=NULL]
+# setkey(colors,project_name)
+# setkey(seq_count_min,project_name)
+# setkey(seq_count_median,project_name)
+# setkey(seq_count_max,project_name)
+# 
+# seq_count_min <- seq_count_min[colors,nomatch=0]
+# seq_count_median <- seq_count_median[colors,nomatch=0]
+# seq_count_max <- seq_count_max[colors,nomatch=0]
+# 
+# full_df <- rbind(seq_count_min,seq_count_median,seq_count_max)
+# 
+# ggplot(data=full_df, aes(x=value_type, group=point_colour, y=chain_length,  color=point_colour)) +
+#   geom_point(alpha=0.5, size=3)+
+#   geom_line()+
+#   theme_bw()+
+#   scale_y_log10()+
+#   scale_colour_gradient2(low="red", high="blue",
+#                          limits=c(1, 1022), midpoint=1022/2, mid="yellow")+
+#   theme(legend.position="none")
+# 
+# head(full_df)
 
 
-#############################################
+#parralel branches vs breakge#############################################
 lf <- unique(build_data[,c("tr_build_id", "git_prev_built_commit","git_trigger_commit","tr_status")])
 lf <- lf[, head(.SD, 1), keyby = .(git_trigger_commit)]
 rf <- copy(lf)
@@ -234,13 +312,6 @@ hist(x_failed[branch_count>1]$branch_count,breaks=10)
 hist_ff <- x_ff[branch_count>1,.(ff_N = .N),by=branch_count]
 hist_f <- x_failed[branch_count>1,.(f_N = .N),by=branch_count]
 
-summary(x_joined[,.N,by= .(l_git_trigger_commit)])
-hist(x_joined[,.N,by= .(l_git_trigger_commit)][N>1 & N<12,,]$N, breaks=10)
-table(x_joined[,.N,by= .(l_git_trigger_commit)][N>1,,]$N)
-samplex <- x_joined[,.N,by= .(l_git_trigger_commit)][N>1,,]
-setorder(samplex,-N)
-samplex
-
 hist_a <- x_joined[,.N,by= .(l_git_trigger_commit)][,.(a_N = .N),by=N]
 
 setkey(hist_a, N)
@@ -249,6 +320,13 @@ setkey(hist_ff, branch_count)
 
 x_af <- hist_a[hist_f, nomatch=0]
 x_aff <- x_af[hist_ff, nomatch=0]
+
+#Many breakages persist after branching
+sum(x_aff$all_builds)
+sum(x_aff$failed_builds)
+sum(x_aff$failed_builds_after_branching)
+sum(x_aff$failed_builds)/sum(x_aff$all_builds)
+sum(x_aff$failed_builds_after_branching)/sum(x_aff$failed_builds)
 
 x_aff$perc_f <- with(x_af,  f_N*100/a_N)
 x_aff$perc_ff <- with(x_aff,  ff_N*100/a_N)
@@ -259,17 +337,24 @@ dfm <- melt(x_aff[,c('branch_count','Failed After Branching','Failed')],id.vars 
             value.name = "Percentage")
 
 theme_set(theme_bw())
-(p = ggplot(dfm,aes(x = branch_count,y = Percentage)) + 
+(p = ggplot(dfm,aes(x = branch_count,y = Percentage/100)) + 
   geom_bar(aes(fill = variable),stat = "identity",position = "identity", color="black", alpha=.3) +
-  labs(x="# of Branches", y="% of Builds", fill="Type of Builds:")+
+  labs(x="# of Branches", y="Percentage of Builds", fill="Type of Builds:")+
+  scale_y_continuous(labels = scales::percent)+
+  theme_bw()+
   scale_x_continuous(breaks=0:12) +
-  theme(text = element_text(size=16),
-        legend.background = element_rect(size=0.5, linetype="solid",colour ="black"),
+  theme(axis.text=element_text(size=8),
+        axis.title=element_text(size=8),
+        legend.title=element_text(size=8),
+        legend.text=element_text(size=8),
+        legend.background = element_rect(size=0.25, linetype="solid",colour ="black"),
         legend.position="bottom"
         ))
 (p = p + scale_fill_grey(start = 0, end = .9))
 
-########################################
+ggsave("parallel_branches_vs_build_failures_perc.pdf", width = 4, height = 3)
+
+##importing/exporting basic stats for further analysis######################################
 
 #basics
 n_distinct(build_data[,get("gh_project_name")])
@@ -322,7 +407,7 @@ summary(failed_job_data)
 quantile(failed_job_data$perc, 0.447)
 #Result1: Not all jobs fail in at least 44% of the failed builds
 
-################################################################################
+#pull requests and breakage###############################################################################
 
 # Percentage of pull requests
 df1 <- build_data[, head(.SD,1) , by = tr_build_id][,.N,by="gh_is_pr"]
@@ -372,7 +457,7 @@ n_distinct(df3[,get("gh_project_name")])
 wilcox.test(failed_builds_filled[gh_is_pr=="FALSE",perc], failed_builds_filled[gh_is_pr=="TRUE",perc], paired = TRUE)
 
 
-#################################################################
+#core team member vs breakage################################################################
 
 # Doing the same tests to decide being a core team member changes anything
 
@@ -430,7 +515,7 @@ beanplot(N ~ gh_is_pr+tr_status, data = df3, ll = 0.02, na.rm = TRUE,
 legend("topleft", fill = c("lightblue", "purple"),
        legend = unique(df3$gh_is_pr))
 
-######################################################################################
+#ignored failed jobs #####################################################################################
 
 # In 13 instances, job failed but build passed for some unknown reason.
 allow_failure_status[job_result=="1" & build_result=="0" & allow_failure==FALSE,.N,by=.(p_name,build_id)]
@@ -446,14 +531,47 @@ count_builds_passing_with_active_faioures/count_all_builds_passing
 
 #How many ignored failed builds are there in passing builds
 ignored_jobs <- allow_failure_status[build_result=='0' & job_result != '0' & allow_failure == TRUE,.N,by= .(build_id)][N<20,,]
-hist(ignored_jobs$N, breaks=20, xlab="No. of ignored failed jobs", main="Ignored failed jobs in passing jobsets")
+hist(ignored_jobs$N, 
+     breaks=20, 
+     xlab="No. of ignored failed jobs", 
+     main="Ignored failed jobs in passing jobsets",
+     right = FALSE,
+     labels = TRUE)
+
+table(ignored_jobs$N)
+
+
+p <- ggplot(ignored_jobs, aes(x=N))
+p+ geom_histogram(binwidth = 1, colour = "black", fill = "white")+
+  labs(y = "Frequency",
+       x = "Number of Ignored Failed Jobs")+
+  scale_x_continuous()+
+   theme_bw()+ theme(
+    axis.text=element_text(size=8),
+    axis.title=element_text(size=8),
+    legend.text=element_text(size=8)
+  )
+ggsave("ignored_failed_jobs.pdf", width = 4, height = 2.5)
 
 #What percentage of ignored failed builds are there in passing builds
 hist(allow_failure_status[build_result=='0',.(perc=sum(job_result != '0' & allow_failure == TRUE)*100/.N),by=.(build_id)][perc>0,,]$perc,
      breaks=15, xlab="Percentage of ignored failed jobs", main=NULL)
-############################
 
-# Signal-to-Noise Ratio Calculation
+p <- ggplot(allow_failure_status[build_result=='0',.(perc=sum(job_result != '0' & allow_failure == TRUE)*100/.N),by=.(build_id)][perc>0,,], 
+            aes(x=perc))
+p+ geom_histogram(binwidth = 10, colour = "black", fill = "white")+
+  labs(y = "Frequency",
+       x = "Percentage of Ignored Failed Jobs")+
+  scale_x_continuous(breaks = seq(0, 90, by = 10))+
+  theme_bw()+ theme(
+    axis.text=element_text(size=8),
+    axis.title=element_text(size=8),
+    legend.text=element_text(size=8)
+  )
+ggsave("percentage_ignored_failed_jobs.pdf", width = 4, height = 2.5)
+
+
+# Signal-to-Noise Ratio Calculation ##############################
 # Singal to noise ratio = (true build failures+true build successes)/(failse build failures+false build successes)
 
 head(allow_failure_status)
@@ -604,11 +722,16 @@ p <- p + geom_line(aes(y = snr, colour = threshold_b,group=threshold_b))
 # # modifying colours and theme options
 p <- p + scale_colour_manual(values = c("darkgrey", "black"),labels = c("Overall", "Branches-only"))
 p <- p + labs(y = "Signal-to-Noise Ratio",
-              x = "Build Failure Sequence Length Threshold",
+              x = expression(paste("Build Failure Sequence Length Threshold (",t[c],")")),
               colour = "Parameter")
-p <- p + theme_bw() + theme(legend.position=c(.8, .8), legend.background = element_rect(size=0.5, linetype="solid", 
-                                                                                        colour ="black")) 
+p <- p + theme_bw() +
+  theme(legend.justification = c(1, 0), legend.position = c(1, 0), 
+        legend.background = element_rect(size=0.5, linetype="solid", colour ="black"),
+        axis.text=element_text(size=8),
+        axis.title=element_text(size=8),
+        legend.text=element_text(size=8)) 
 p
+ggsave("snr.pdf", width = 4, height = 2.5)
 
 
 
@@ -617,7 +740,7 @@ p
 
 
 
-###########
+#Incomplete ##########
 
 # (Results of jobs + Did developers silenced the failures) For all builds
 maven_job_status <- fread("../../results/maven_build_status_analysis.csv", 
