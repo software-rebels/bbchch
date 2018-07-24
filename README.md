@@ -1,5 +1,5 @@
-# bbchch
-Build Breakage Considered Harmful Considered Harmful
+# Noise and Heterogeneity in Historical Build Data
+An Empirical Study of Travis CI
 
 ## Setup instructions
 
